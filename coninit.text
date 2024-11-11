@@ -1,0 +1,6 @@
+airflow connections add 'remote_machine_1' \
+    --conn-type SSH \
+    --conn-host '51.195.11.201' \
+    --conn-login 'root' \
+    --conn-password 'Ditr0s@2024' \
+    --conn-port 22

@@ -1,0 +1,223 @@
+version: '3'
+
+
+services:
+  airflow-webserver:
+    image: airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor  # Use CeleryExecutor for distributed execution
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+    volumes:
+      - ./airflow:/opt/airflow
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+      - airflow-scheduler  # Depends on scheduler to be running
+    healthcheck:
+      test: ["CMD-SHELL", "airflow db check"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 10s
+    command: webserver
+
+  airflow-scheduler:
+    image: airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./airflow:/opt/airflow
+    healthcheck:
+      test: ["CMD-SHELL", "airflow db check"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 10s
+    command: scheduler
+
+  airflow-flower:
+    image: airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+    ports:
+      - "5555:5555"  # Flower will be accessible on port 5555
+    depends_on:
+      - redis
+      - postgres
+    command: celery flower
+
+
+  airflow-worker-1:
+    image: airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./airflow:/opt/airflow
+    command: celery worker -H worker_1
+
+  airflow-worker-2:
+    image: airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./airflow:/opt/airflow
+    command: celery worker -H worker_2
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes","--maxmemory", "2gb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+  postgres:
+    image: postgres:16.3-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 10s
+
+volumes:
+  postgres_data: {}
+  redis_data: {}
+
+
+
+# services:
+#   sleek-airflow:
+#     image: apache/airflow:2.6.0
+#     environment:
+#       - AIRFLOW__CORE__EXECUTOR=CeleryExecutor  # Switch to CeleryExecutor to use Redis
+#       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+#       - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0  # Use Redis as the broker
+#       - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow  # Results in Postgres
+#     volumes:
+#       - ./airflow:/opt/airflow
+#     ports:
+#       - "8080:8080"
+#     depends_on:
+#       - postgres
+#       - redis  # Add dependency on Redis
+#     command: airflow standalone
+#     healthcheck:
+#       test: ["CMD-SHELL", "airflow db check"]
+#       interval: 10s
+#       retries: 5
+#       start_period: 10s
+#       timeout: 10s
+
+#   redis:
+#     image: redis:latest
+#     ports:
+#       - "6379:6379"
+#     healthcheck:
+#       test: ["CMD", "redis-cli", "ping"]
+#       interval: 10s
+#       retries: 5
+#       start_period: 10s
+#       timeout: 5s
+
+#   postgres:
+#     image: postgres:16.3-alpine
+#     environment:
+#       POSTGRES_USER: airflow
+#       POSTGRES_PASSWORD: airflow
+#       POSTGRES_DB: airflow
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - ./postgres_data:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U airflow"]
+#       interval: 10s
+#       retries: 5
+#       start_period: 10s
+#       timeout: 10s
+
+# volumes:
+#   postgres_data: {}
+
+
+# services:
+#   sleek-airflow:
+#     image: airflow
+#     environment:
+#       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+#     volumes:
+#       - ./airflow:/opt/airflow
+#     ports:
+#       - "8080:8080"
+#     depends_on:
+#       - postgres
+#     command: airflow standalone
+#     healthcheck:
+#       test: ["CMD-SHELL", "airflow db check"]
+#       interval: 10s
+#       retries: 5
+#       start_period: 10s
+#       timeout: 10s
+
+#   postgres:
+#     image: postgres:16.3-alpine
+#     environment:
+#       POSTGRES_USER: airflow
+#       POSTGRES_PASSWORD: airflow
+#       POSTGRES_DB: airflow
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - ./postgres_data:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U airflow"]
+#       interval: 10s
+#       retries: 5
+#       start_period: 10s
+#       timeout: 10s
+
+# volumes:
+#   postgres_data: {}
+
+
+
